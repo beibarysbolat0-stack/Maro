@@ -1,4 +1,52 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#185b46"><title>Maro — личный помощник</title><link rel="manifest" href="/manifest.json"><link rel="icon" href="/icon.svg"><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head><body>
-<header><a class="brand" href="/">Maro<span>личный помощник</span></a><div id="account"></div></header><main>
-<section id="auth"><p class="eyebrow">ОДИН ПЛАН НА ВСЕХ УСТРОЙСТВАХ</p><h1>Большие цели.<br>Посильные шаги.</h1><p>Учёба, работа, здоровье, финансы и жизнь — в одном месте.</p><form id="auth-form"><label>Email<input type="email" name="email" autocomplete="username" required></label><label>Пароль<input type="password" name="password" minlength="10" maxlength="128" autocomplete="current-password" required></label><div class="actions"><button name="mode" value="login">Войти</button><button class="secondary" name="mode" value="register">Создать аккаунт</button></div></form><p class="muted">Используйте один аккаунт на телефоне и ноутбуке. Для установки приложения нужен сервер с HTTPS.</p></section>
-<section id="planner" hidden><p class="eyebrow" id="date-label"></p><h1>Ваш следующий шаг</h1><p class="intro">Планируйте своё. Принимайте полезные предложения.</p><nav id="horizons" aria-label="Срок плана"></nav><div class="grid"><section class="card"><div class="card-head"><h2 id="list-title">Сегодня</h2><span id="progress"></span></div><div id="items"></div><form id="task-form"><label>Задача или цель<input name="title" placeholder="Что вы хотите сделать?" maxlength="500" required></label><div class="row"><label>Сфера<select name="area"><option value="study">Учёба</option><option value="work">Работа</option><option value="health">Здоровье</option><option value="money">Финансы</option><option value="life">Личное</option></select></label><label>Дата<input name="date" type="date" required></label></div><button>Добавить в план</button></form></section><aside class="card"><p class="eyebrow">ПОМОЩНИК</p><h2>Начните с малого</h2><p class="muted">Предложения по шаблонам и вашим целям. Добавляйте только то, что подходит вам.</p><div id="suggestions"></div><button id="refresh" class="secondary">Обновить план</button><p class="muted small">Изменения сохраняются на сервере. План обновляется при открытии и каждые 15 секунд. Для работы нужен интернет.</p></aside></div></section><p id="message" role="status"></p></main><footer>Цели на 5 лет → год → месяц → неделю → сегодня</footer></body></html>
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f5f2e9">
+  <meta name="description" content="Maro — личное пространство для целей, привычек, времени и денег.">
+  <title>Maro — мой ритм</title>
+  <link rel="manifest" href="/manifest.json?v=2">
+  <link rel="icon" href="/icon.svg?v=2">
+  <link rel="stylesheet" href="/style.css?v=2">
+  <script src="/app.js?v=2" defer></script>
+</head>
+<body data-theme="morning" data-density="comfortable">
+  <section id="auth" class="auth-shell">
+    <div class="auth-art" aria-hidden="true">
+      <div class="auth-mark">m.</div>
+      <div class="auth-orbit orbit-a"></div><div class="auth-orbit orbit-b"></div>
+      <div class="auth-art-copy"><span class="overline">МЕСТО ДЛЯ ТВОИХ ПЛАНОВ</span><h1>Будущее начинается с одного дня.</h1><p>Цели, привычки, дела и деньги связаны в одном спокойном пространстве.</p></div>
+    </div>
+    <div class="auth-panel">
+      <div class="auth-panel-inner">
+        <span class="brand-inline"><span class="brand-symbol">m</span> Maro</span>
+        <p class="overline">ДОБРО ПОЖАЛОВАТЬ</p>
+        <h2>Твой ритм.<br>Твои правила.</h2>
+        <p class="muted">Войди в свой аккаунт или создай новый. Тот же аккаунт откроет твой план на телефоне и ноутбуке.</p>
+        <form id="auth-form" class="stack-form">
+          <label>Email<input type="email" name="email" autocomplete="username" placeholder="name@example.com" required></label>
+          <label>Пароль<input type="password" name="password" minlength="10" maxlength="128" autocomplete="current-password" placeholder="Не менее 10 символов" required></label>
+          <div class="auth-actions"><button name="mode" value="login" type="submit" class="btn primary">Войти <span aria-hidden="true">→</span></button><button name="mode" value="register" type="submit" class="btn outline">Создать аккаунт</button></div>
+        </form>
+        <p class="auth-note">Готовых логина и пароля нет: при регистрации ты выбираешь их сам.</p>
+      </div>
+    </div>
+  </section>
+  <div id="app" class="app-shell" hidden>
+    <aside class="sidebar">
+      <a href="/" class="brand" aria-label="Maro — главная"><span class="brand-symbol">m</span><span>Maro<small>ПРОСТРАНСТВО ДЛЯ РОСТА</small></span></a>
+      <p class="sidebar-label">ТВОЁ ПРОСТРАНСТВО</p>
+      <nav id="main-nav" class="main-nav" aria-label="Разделы Maro"></nav>
+      <div class="sidebar-bottom"><div class="sidebar-quote">«Большие перемены любят маленькие действия».</div><button id="logout" class="logout-btn" type="button">Выйти из аккаунта <span aria-hidden="true">↗</span></button></div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar"><span class="mobile-logo">m<span>.</span></span><span id="top-date" class="top-date"></span><div class="top-actions"><span class="online-dot" title="Данные сохраняются в аккаунте"></span><span id="account-email"></span><button id="quick-add" class="btn primary quick-add" type="button">+ Добавить шаг</button></div></header>
+      <main id="view" tabindex="-1"></main>
+      <nav id="mobile-nav" class="mobile-nav" aria-label="Разделы Maro"></nav>
+    </div>
+  </div>
+  <dialog id="editor" class="editor-dialog"><div class="dialog-head"><div><p class="overline">MARO / ЗАПИСЬ</p><h2 id="dialog-title"></h2></div><button type="button" id="close-dialog" class="icon-btn" aria-label="Закрыть">×</button></div><form id="editor-form" class="stack-form"></form></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

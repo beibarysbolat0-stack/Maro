@@ -1,0 +1,13 @@
+CREATE TABLE IF NOT EXISTS habits (id TEXT PRIMARY KEY, user TEXT NOT NULL, title TEXT NOT NULL, area TEXT NOT NULL, created INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS habit_logs (habit TEXT NOT NULL, user TEXT NOT NULL, date TEXT NOT NULL, PRIMARY KEY(habit, date));
+CREATE INDEX IF NOT EXISTS habit_logs_user_date ON habit_logs(user, date);
+CREATE TABLE IF NOT EXISTS transactions (id TEXT PRIMARY KEY, user TEXT NOT NULL, kind TEXT NOT NULL, amount INTEGER NOT NULL, category TEXT NOT NULL, note TEXT NOT NULL, date TEXT NOT NULL, created INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS transactions_user_date ON transactions(user, date);
+CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, user TEXT NOT NULL, title TEXT NOT NULL, category TEXT NOT NULL, body TEXT NOT NULL, created INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS notes_user_created ON notes(user, created DESC);
+CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, user TEXT NOT NULL, title TEXT NOT NULL, date TEXT NOT NULL, time TEXT NOT NULL, created INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS events_user_date ON events(user, date);
+CREATE TABLE IF NOT EXISTS sleep_logs (id TEXT PRIMARY KEY, user TEXT NOT NULL, date TEXT NOT NULL, hours REAL NOT NULL, created INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS sleep_logs_user_date ON sleep_logs(user, date);
+CREATE TABLE IF NOT EXISTS focus_sessions (id TEXT PRIMARY KEY, user TEXT NOT NULL, title TEXT NOT NULL, minutes INTEGER NOT NULL, date TEXT NOT NULL, created INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS focus_sessions_user_date ON focus_sessions(user, date);

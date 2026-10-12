@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "start": "node server.js",
+    "start": "wrangler dev --local",
     "test": "node --test",
     "dev:cloud": "wrangler dev --local",
     "db:local": "wrangler d1 migrations apply maro --local"
@@ -12,6 +12,7 @@
     "node": ">=22.13"
   },
   "devDependencies": {
+    "jsdom": "^26.1.0",
     "wrangler": "^4.149.0"
   }
 }
