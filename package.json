@@ -1,0 +1,17 @@
+{
+  "name": "maro",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test",
+    "dev:cloud": "wrangler dev --local",
+    "db:local": "wrangler d1 migrations apply maro --local"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "devDependencies": {
+    "wrangler": "^4.149.0"
+  }
+}
