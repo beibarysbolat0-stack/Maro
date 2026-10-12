@@ -41,7 +41,7 @@ test('Worker stores all personal sections, synchronizes sessions and separates a
     assert.equal((await call(`transactions/${ids.transactions}`,'DELETE',{},other.cookie)).status,404);
     assert.equal((await call(`transactions/${ids.transactions}`,'DELETE',{},first.cookie)).status,200);
     assert.equal((await call('state','GET',undefined,secondSession.cookie)).data.transactions.length,0);
-    const page=await fetch(origin+'/');assert.equal(page.status,200);assert.match(await page.text(),/Maro — мой ритм/);
+    const page=await fetch(origin+'/');assert.equal(page.status,200);assert.match(await page.text(),/VELTRIX — мой ритм/);
   } catch(error) { error.message+='\n'+output.slice(-1600); throw error; }
   finally { if(child){child.kill();await new Promise(resolve=>{if(child.exitCode!==null)resolve();else child.once('exit',resolve);});}fs.rmSync(directory,{recursive:true,force:true}); }
 });
