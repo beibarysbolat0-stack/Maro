@@ -10,5 +10,5 @@ run_worker_first = ["/api/*", "/health"]
 [[d1_databases]]
 binding = "DB"
 database_name = "maro"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "207b81c7-e86c-48f3-8c32-7345e299cb10"
 migrations_dir = "migrations"
