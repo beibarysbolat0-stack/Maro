@@ -24,9 +24,14 @@ function normalizeActions(raw, items, habits, day){
 }
 function basicPlan(message, day, items, habits){
   if(/^(привет|здравствуй|добрый день|как дела|спасибо)[!? .]*$/i.test(message))return {reply:'Привет! Расскажи, что планируешь сегодня, и я помогу составить план.',actions:[],mode:'basic'};
-  const pieces=message.replace(/\b(сегодня|завтра|планирую|я буду|мне надо|нужно|хочу)\b/gi,'').split(/[,;\n]|\s+потом\s+|\s+затем\s+/i).map(s=>s.trim().replace(/^(и|а|ещё|еще)\s+/i,'').replace(/[.!?]+$/,'')).filter(s=>s.length>=4).slice(0,6);
-  const actions=pieces.map(title=>({type:/каждый день|ежедневно|привычк/i.test(title)?'habit':'task',title:title.replace(/\b(каждый день|ежедневно)\b/gi,'').trim(),date:day,area:areaOf(title)}));
-  return {reply:actions.length?'Я выделил действия из твоего сообщения. Проверь их ниже — я могу добавить их в план.':'Расскажи, что собираешься сделать сегодня. Например: «Сегодня учусь, гуляю и читаю книгу».',actions:normalizeActions(actions,items,habits,day),mode:'basic'};
+  if(/\?|^(что|как|почему|где|когда)\s/i.test(message)){
+    if(/сегодня|план|задач/i.test(message))return {reply:`На сегодня у тебя ${items.filter(x=>!x.done&&x.date<=day).length} незавершённых задач и ${habits.length} привычек. Можешь назвать новое дело — я добавлю его в план.`,actions:[],mode:'basic'};
+    return {reply:'Расскажи, что хочешь запланировать, и я помогу добавить это в твой день.',actions:[],mode:'basic'};
+  }
+  const cleaned=message.replace(/(^|[\s,.])(сегодня|планирую|я буду|мне надо|нужно|хочу|собираюсь)(?=$|[\s,.])/gi,' ');
+  const pieces=cleaned.split(/[,;\n]|\s+потом\s+|\s+затем\s+|\s+и\s+(?=(?:пойти|погулять|гулять|прочитать|читать|сделать|закончить|купить|тренироваться|готовиться|сходить|работать|учиться)\s)/i).map(s=>s.trim().replace(/^(и|а|ещё|еще)\s+/i,'').replace(/[.!?]+$/,'')).filter(s=>s.length>=4).slice(0,6);
+  const actions=pieces.map(title=>({type:/каждый день|ежедневно|каждое утро|каждый вечер|привычк/i.test(title)?'habit':'task',title:title.replace(/(каждый день|ежедневно|каждое утро|каждый вечер)/gi,'').trim(),date:day,area:areaOf(title)}));
+  return {reply:actions.length?'Я подготовил изменения плана из твоего сообщения.':'Расскажи, что собираешься сделать сегодня. Например: «Сегодня учусь, гуляю и читаю книгу».',actions:normalizeActions(actions,items,habits,day),mode:'basic'};
 }
 async function aiPlan(env,message,day,items,habits,history){
   if(!env.AI || env.AI_ENABLED!=='true')return null;

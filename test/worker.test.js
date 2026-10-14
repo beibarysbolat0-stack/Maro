@@ -41,6 +41,13 @@ test('Worker stores all personal sections, synchronizes sessions and separates a
     const proposal=await call('assistant/plan','POST',{message:'Сегодня я буду готовиться к экзамену, потом гулять',today:date},first.cookie);
     assert.equal(proposal.status,200);
     assert.ok(proposal.data.actions.some(action=>action.type==='task'));
+    assert.ok(proposal.data.actions.some(action=>/экзамену/.test(action.title)));
+    const habitProposal=await call('assistant/plan','POST',{message:'Каждый день читать книгу',today:date},first.cookie);
+    assert.equal(habitProposal.data.actions[0].type,'habit');
+    assert.equal(habitProposal.data.actions[0].title,'читать книгу');
+    assert.equal((await call('assistant/apply','POST',{actions:habitProposal.data.actions,today:date},first.cookie)).data.saved,1);
+    const summary=await call('assistant/plan','POST',{message:'Что у меня сегодня?',today:date},first.cookie);
+    assert.equal(summary.data.actions.length,0);
     const applied=await call('assistant/apply','POST',{actions:proposal.data.actions,today:date},first.cookie);
     assert.equal(applied.status,200);
     assert.ok(applied.data.saved>0);

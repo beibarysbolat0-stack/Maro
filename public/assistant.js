@@ -3,7 +3,7 @@ function renderAssistant(){
   view.append(heading('ТВОЙ ПОМОЩНИК','Помощник','Расскажи голосом или напиши, что планируешь. VELTRIX подготовит задачи и привычки.'));
   const layout=make('div','assistant-layout'),intro=panel(),chat=panel();
   intro.classList.add('assistant-intro');
-  intro.append(make('span','overline','ПЛАНИРОВАНИЕ В ДИАЛОГЕ'),make('h2','','Скажи как есть. План станет яснее.'),make('p','muted','Например: «Сегодня хочу закончить проект, погулять и каждый день читать по 20 минут». ИИ предложит изменения и может сразу сохранить их. Когда ИИ недоступен, VELTRIX покажет простой черновик для проверки.'));
+  intro.append(make('span','overline','ПЛАНИРОВАНИЕ В ДИАЛОГЕ'),make('h2','','Скажи как есть. План станет яснее.'),make('p','muted','Например: «Сегодня хочу закончить проект, погулять и каждый день читать по 20 минут». Помощник добавит распознанные дела и привычки в твой план. Автосохранение можно выключить ниже.'));
   const examples=make('div','assistant-examples');
   for(const phrase of ['Сегодня готовлюсь к экзамену и иду на тренировку','Хочу каждый день гулять 20 минут','Перенеси мою задачу на завтра'])examples.append(button(phrase,'pill',()=>{input.value=phrase;input.focus();}));
   intro.append(examples);
@@ -15,7 +15,7 @@ function renderAssistant(){
   const input=make('textarea','assistant-input');input.placeholder='Что ты собираешься сделать сегодня?';input.rows=3;input.maxLength=1200;input.setAttribute('aria-label','Сообщение помощнику');
   const controls=make('div','assistant-controls'),voice=button('🎙 Сказать','btn outline',startVoice),send=make('button','btn primary','Отправить →');send.type='submit';
   controls.append(voice,send);form.append(input,controls);chat.append(form);
-  const autoLabel=make('label','assistant-auto'),auto=make('input');auto.type='checkbox';auto.checked=true;autoLabel.append(auto,make('span','','Автоматически сохранять предложения ИИ'));chat.append(autoLabel,status);
+  const autoLabel=make('label','assistant-auto'),auto=make('input');auto.type='checkbox';auto.checked=true;autoLabel.append(auto,make('span','','Автоматически сохранять предложенные задачи и привычки'));chat.append(autoLabel,status);
   layout.append(intro,chat);view.append(layout);
   const storageKey='veltrix-chat:'+state.email;
   let history=[];try{history=JSON.parse(localStorage.getItem(storageKey)||'[]');if(!Array.isArray(history))history=[];}catch{}
@@ -25,7 +25,7 @@ function renderAssistant(){
   for(const entry of history)if(typeof entry.message==='string'&&['user','assistant'].includes(entry.role))messages.append(make('div',`assistant-bubble ${entry.role}`,entry.message));
   if(!history.length)messages.append(make('div','assistant-bubble assistant','Привет! Что у тебя сегодня в планах?'));
   async function apply(actions){
-    const result=await api('assistant/apply','POST',{actions,today:today()});await refresh();status.textContent=`Сохранено изменений: ${result.saved}. Проверь план на странице «Сегодня».`;draft.replaceChildren();
+    const result=await api('assistant/apply','POST',{actions,today:today()});state.data=await api('state');status.textContent=result.saved?`Сохранено изменений: ${result.saved}. Проверь план на странице «Сегодня».`:'Эти записи уже есть в плане.';draft.replaceChildren();
   }
   function showDraft(actions){
     draft.replaceChildren();if(!actions.length)return;
@@ -39,7 +39,7 @@ function renderAssistant(){
     try{
       const result=await api('assistant/plan','POST',{message,today:today(),history:history.slice(-6)});
       add('assistant',result.reply);status.textContent=result.mode==='ai'?'Ответ ИИ получен.':'ИИ пока недоступен; показан простой разбор текста.';
-      if(result.actions?.length){if(result.mode==='ai'&&auto.checked){await apply(result.actions);}else showDraft(result.actions);}
+      if(result.actions?.length){if(auto.checked){await apply(result.actions);}else showDraft(result.actions);}
     }catch(error){status.textContent=error.message;add('assistant','Не удалось обработать сообщение. Попробуй ещё раз.');}
     finally{send.disabled=false;voice.disabled=false;input.focus();}
   });

@@ -18,6 +18,8 @@ test('signed-in interface opens every section and safely renders personal notes'
   const writes = [];
   window.fetch = async (input, options = {}) => {
     const route = String(input).split('/api/')[1];
+    if (route === 'assistant/plan') return new Response(JSON.stringify({reply:'Добавляю прогулку.',mode:'basic',actions:[{type:'task',title:'Прогулка',area:'health',date:'2026-10-14'}]}), {status:200});
+    if (route === 'assistant/apply') { writes.push({assistant:JSON.parse(options.body)}); return new Response(JSON.stringify({saved:1}), {status:200}); }
     if (options.method === 'POST' && route === 'habits') { writes.push(JSON.parse(options.body)); return new Response(JSON.stringify({id:'e'.repeat(32)}), {status:201}); }
     if (route === 'me') return new Response(JSON.stringify({ email: 'test@example.com' }), { status: 200 });
     if (route === 'state') return new Response(JSON.stringify({
@@ -40,6 +42,13 @@ test('signed-in interface opens every section and safely renders personal notes'
     habitForm.dispatchEvent(new window.SubmitEvent('submit', { bubbles:true, cancelable:true }));
     await new Promise(resolve => setTimeout(resolve, 30));
     assert.equal(writes[0].title, 'Читать каждый день');
+    const assistant = [...window.document.querySelectorAll('#main-nav button')].find(x => x.textContent.includes('Помощник'));
+    assistant.click();
+    window.document.querySelector('.assistant-input').value='Сегодня погуляю';
+    window.document.querySelector('.assistant-composer').dispatchEvent(new window.SubmitEvent('submit', {bubbles:true,cancelable:true}));
+    await new Promise(resolve => setTimeout(resolve, 30));
+    assert.equal(writes[1].assistant.actions[0].title,'Прогулка');
+    assert.match(window.document.querySelector('#assistant-status').textContent,/Сохранено изменений: 1/);
     for (const title of ['Помощник','Мой путь','Итоги','Жизнь','Финансы','База знаний','Оформление']) {
       const target = [...window.document.querySelectorAll('#main-nav button')].find(x => x.textContent.includes(title));
       assert.ok(target, title);
