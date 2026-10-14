@@ -7,6 +7,7 @@ const { JSDOM } = require('jsdom');
 test('signed-in interface opens every section and safely renders personal notes', async () => {
   const html = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
   const script = fs.readFileSync(path.join(__dirname, '../public/app.js'), 'utf8');
+  const assistantScript = fs.readFileSync(path.join(__dirname, '../public/assistant.js'), 'utf8');
   const dom = new JSDOM(html, { url: 'https://maro.example/', runScripts: 'outside-only' });
   const { window } = dom;
   const errors = [];
@@ -29,7 +30,7 @@ test('signed-in interface opens every section and safely renders personal notes'
     return new Response('{}', { status: 200 });
   };
   try {
-    window.eval(script);
+    window.eval(assistantScript+'\n'+script);
     await new Promise(resolve => setTimeout(resolve, 60));
     assert.equal(window.document.querySelector('#app').hidden, false);
     const habitButton = [...window.document.querySelectorAll('#view button')].find(x => x.textContent.includes('+ Привычка'));
@@ -39,7 +40,7 @@ test('signed-in interface opens every section and safely renders personal notes'
     habitForm.dispatchEvent(new window.SubmitEvent('submit', { bubbles:true, cancelable:true }));
     await new Promise(resolve => setTimeout(resolve, 30));
     assert.equal(writes[0].title, 'Читать каждый день');
-    for (const title of ['Мой путь','Итоги','Жизнь','Финансы','База знаний','Оформление']) {
+    for (const title of ['Помощник','Мой путь','Итоги','Жизнь','Финансы','База знаний','Оформление']) {
       const target = [...window.document.querySelectorAll('#main-nav button')].find(x => x.textContent.includes(title));
       assert.ok(target, title);
       target.click();

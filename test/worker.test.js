@@ -38,6 +38,16 @@ test('Worker stores all personal sections, synchronizes sessions and separates a
     for(const collection of ['items','habits','habitLogs','transactions','notes','events','sleep','focus'])assert.equal(shared.data[collection].length,1,collection);
     const isolated=await call('state','GET',undefined,other.cookie);
     assert.ok(Object.values(isolated.data).every(list=>list.length===0));
+    const proposal=await call('assistant/plan','POST',{message:'Сегодня я буду готовиться к экзамену, потом гулять',today:date},first.cookie);
+    assert.equal(proposal.status,200);
+    assert.ok(proposal.data.actions.some(action=>action.type==='task'));
+    const applied=await call('assistant/apply','POST',{actions:proposal.data.actions,today:date},first.cookie);
+    assert.equal(applied.status,200);
+    assert.ok(applied.data.saved>0);
+    const repeated=await call('assistant/apply','POST',{actions:proposal.data.actions,today:date},first.cookie);
+    assert.equal(repeated.data.saved,0);
+    assert.equal((await call('state','GET',undefined,other.cookie)).data.items.length,0);
+    assert.equal((await call('assistant/plan','POST',{message:'Запланируй прогулку',today:date})).status,401);
     assert.equal((await call(`transactions/${ids.transactions}`,'DELETE',{},other.cookie)).status,404);
     assert.equal((await call(`transactions/${ids.transactions}`,'DELETE',{},first.cookie)).status,200);
     assert.equal((await call('state','GET',undefined,secondSession.cookie)).data.transactions.length,0);

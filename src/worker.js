@@ -1,4 +1,5 @@
 import { handleFeatures } from './features.js';
+import { handleAssistant } from './assistant.js';
 const encoder = new TextEncoder();
 const text = (status, body, headers = {}) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...headers } });
 const hex = bytes => [...bytes].map(x => x.toString(16).padStart(2, '0')).join('');
@@ -79,6 +80,8 @@ export default {
       else return text(400, { error: 'Проверьте название, сферу, срок и дату' });
       return result.meta.changes ? text(200, {}) : text(404, { error: 'Задача не найдена' });
     }
+    const assistantResponse = await handleAssistant(url.pathname, request.method, body, env, session.user);
+    if (assistantResponse) return assistantResponse;
     const featureResponse = await handleFeatures(url.pathname, request.method, body, db, session.user);
     if (featureResponse) return featureResponse;
     return text(404, { error: 'Не найдено' });
