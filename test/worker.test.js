@@ -18,7 +18,7 @@ test('Worker stores all personal sections, synchronizes sessions and separates a
   try {
     execFileSync(cli,['d1','migrations','apply','maro','--local','--persist-to',directory],{cwd:root,env:environment,timeout:20000,stdio:'pipe'});
     const port=await freePort(),origin=`http://127.0.0.1:${port}`;
-    child=spawn(cli,['dev','--local','--ip','127.0.0.1','--port',String(port),'--persist-to',directory],{cwd:root,env:environment,stdio:['ignore','pipe','pipe']});
+    child=spawn(cli,['dev','--local','--ip','127.0.0.1','--port',String(port),'--persist-to',directory,'--var','AI_ENABLED:false'],{cwd:root,env:environment,stdio:['ignore','pipe','pipe']});
     child.stdout.on('data',chunk=>{output+=String(chunk).slice(-1000);});
     child.stderr.on('data',chunk=>{output+=String(chunk).slice(-1000);});
     await waitReady(origin);

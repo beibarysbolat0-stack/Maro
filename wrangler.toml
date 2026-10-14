@@ -3,7 +3,7 @@ main = "src/worker.js"
 compatibility_date = "2026-10-01"
 
 [vars]
-AI_ENABLED = "false"
+AI_ENABLED = "true"
 
 [ai]
 binding = "AI"

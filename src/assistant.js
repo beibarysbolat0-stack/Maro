@@ -35,9 +35,13 @@ function basicPlan(message, day, items, habits){
 }
 async function aiPlan(env,message,day,items,habits,history){
   if(!env.AI || env.AI_ENABLED!=='true')return null;
+  const usageDay=new Date().toISOString().slice(0,10);
+  await env.DB.prepare('INSERT OR IGNORE INTO assistant_usage (day,requests) VALUES (?,0)').bind(usageDay).run();
+  const quota=await env.DB.prepare('UPDATE assistant_usage SET requests=requests+1 WHERE day=? AND requests<20').bind(usageDay).run();
+  if(!quota.meta.changes)return null;
   const brief={today:day,tasks:items.filter(x=>!x.done).slice(0,35).map(x=>({id:x.id,title:x.title,date:x.date,area:x.area})),habits:habits.slice(0,30).map(x=>({title:x.title,area:x.area}))};
   const prompt=`Ты русскоязычный помощник по планированию. Помоги дружелюбно и кратко. Составь действия из сообщения пользователя. Не выдумывай факты. Существующие задачи не дублируй. Не создавай финансовые операции. Для повторяющегося занятия используй habit. Для конкретного дела используй task. Сдвиг существующей задачи — reschedule с точным id. Ответ строго JSON: {"reply":"один-два предложения","actions":[{"type":"task","title":"...","date":"YYYY-MM-DD","area":"study|work|health|money|life"},{"type":"habit","title":"...","area":"..."},{"type":"reschedule","id":"...","date":"YYYY-MM-DD"}]}. Если пользователь просто беседует, actions пустой массив. Контекст: ${JSON.stringify(brief)}. Недавний диалог: ${JSON.stringify(history)}. Сообщение: ${JSON.stringify(message)}`;
-  const result=await env.AI.run('@cf/meta/llama-3.1-8b-instruct',{messages:[{role:'user',content:prompt}],max_tokens:700,temperature:0.2});
+  const result=await env.AI.run('@cf/meta/llama-3.1-8b-instruct-fp8',{messages:[{role:'user',content:prompt}],max_tokens:500,temperature:0.2});
   const content=String(result?.response||'');const match=content.match(/\{[\s\S]*\}/);if(!match)return null;
   const parsed=JSON.parse(match[0]);
   return {reply:typeof parsed.reply==='string'?parsed.reply.trim().slice(0,600):'Вот что я предлагаю:',actions:normalizeActions(parsed.actions,items,habits,day),mode:'ai'};
