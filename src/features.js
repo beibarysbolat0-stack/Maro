@@ -25,7 +25,7 @@ export async function handleFeatures(path, method, body, db, user) {
   if (path === '/api/habits' && method === 'POST') {
     if (!titleOk(body.title) || !areas.includes(body.area)) return invalid();
     const newId = id();
-    await db.prepare('INSERT INTO habits (id,user,title,area,created,color) VALUES (?,?,?,?,?,?)').bind(newId,user,body.title.trim(),body.area,Date.now(),['blue','violet','green','amber','rose'].includes(body.color)?body.color:'blue').run();
+    await db.prepare('INSERT INTO habits (id,user,title,area,created,color) VALUES (?,?,?,?,?,?)').bind(newId,user,body.title.trim(),body.area,Date.now(),['auto','blue','sky','violet','green','amber','rose','orange','yellow','cyan','lime'].includes(body.color)?body.color:'blue').run();
     return reply(201,{id:newId});
   }
   const habitEdit = /^\/api\/habits\/([a-f0-9]{32})$/.exec(path);
@@ -35,7 +35,7 @@ export async function handleFeatures(path, method, body, db, user) {
       return result.meta.changes ? reply(200,{}) : reply(404,{error:'Привычка не найдена'});
     }
     if (!titleOk(body.title) || !areas.includes(body.area)) return invalid();
-    const result = await db.prepare('UPDATE habits SET title=?,area=?,color=? WHERE id=? AND user=?').bind(body.title.trim(),body.area,['blue','violet','green','amber','rose'].includes(body.color)?body.color:'blue',habitEdit[1],user).run();
+    const result = await db.prepare('UPDATE habits SET title=?,area=?,color=? WHERE id=? AND user=?').bind(body.title.trim(),body.area,['auto','blue','sky','violet','green','amber','rose','orange','yellow','cyan','lime'].includes(body.color)?body.color:'blue',habitEdit[1],user).run();
     return result.meta.changes ? reply(200,{}) : reply(404,{error:'Привычка не найдена'});
   }
   const habitCheck = /^\/api\/habits\/([a-f0-9]{32})\/check$/.exec(path);

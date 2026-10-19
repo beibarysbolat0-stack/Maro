@@ -40,6 +40,8 @@ test('signed-in interface opens every section and safely renders personal notes'
     window.eval(workspaceScript+'\n'+assistantScript+'\n'+script);
     await new Promise(resolve => setTimeout(resolve, 60));
     assert.equal(window.document.querySelector('#app').hidden, false);
+    assert.equal(window.document.body.dataset.theme, 'spectrum');
+    assert.equal(window.document.querySelector('.habit-row').style.getPropertyValue('--tag-color'), '#b4e35a');
     const habitButton = [...window.document.querySelectorAll('#view button')].find(x => x.textContent.includes('+ Привычка'));
     habitButton.click();
     const habitForm = window.document.querySelector('#editor-form');
@@ -62,6 +64,7 @@ test('signed-in interface opens every section and safely renders personal notes'
     }
     [...window.document.querySelectorAll('#main-nav button')].find(x => x.textContent.includes('Доска')).click();
     assert.match(window.document.querySelector('.work-board-card').textContent,/Большая цель/);
+    assert.equal(window.document.querySelector('.work-board-card').style.getPropertyValue('--tag-color'), '#ff742e');
     window.document.querySelector('.work-board-card .work-card-actions button:nth-child(2)').click();
     await new Promise(resolve => setTimeout(resolve, 25));
     assert.deepEqual(writes.at(-1).body,{status:'progress'});

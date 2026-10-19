@@ -20,7 +20,7 @@ function sameHash(a, b) {
 const cookie = (token, maxAge) => `maro=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${maxAge}`;
 const validTime = value => value === undefined || value === '' || (typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value));
 const validDuration = value => value === undefined || (Number.isInteger(value) && value >= 15 && value <= 720);
-const validColor = value => value === undefined || ['blue','violet','green','amber','rose'].includes(value);
+const validColor = value => value === undefined || ['auto','blue','sky','violet','green','amber','rose','orange','yellow','cyan','lime'].includes(value);
 const validStatus = value => value === undefined || ['plan','progress','done'].includes(value);
 const validProject = value => value === undefined || (typeof value === 'string' && value.trim().length <= 80);
 const validPriority = value => value === undefined || ['normal','high'].includes(value);
