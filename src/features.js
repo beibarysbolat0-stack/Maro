@@ -10,8 +10,8 @@ const invalid = () => reply(400, { error: 'Проверьте данные фо�
 export async function handleFeatures(path, method, body, db, user) {
   if (path === '/api/state' && method === 'GET') {
     const [items, habits, habitLogs, transactions, notes, events, sleep, focus] = await Promise.all([
-      rows(db, 'SELECT id,title,area,horizon,date,done FROM items WHERE user=? ORDER BY created DESC', user),
-      rows(db, 'SELECT id,title,area,created FROM habits WHERE user=? ORDER BY created DESC', user),
+      rows(db, 'SELECT id,title,area,horizon,date,done,time,duration,status,color,archived FROM items WHERE user=? ORDER BY created DESC', user),
+      rows(db, 'SELECT id,title,area,created,color,archived FROM habits WHERE user=? ORDER BY created DESC', user),
       rows(db, 'SELECT habit,date FROM habit_logs WHERE user=? ORDER BY date DESC LIMIT 5000', user),
       rows(db, 'SELECT id,kind,amount,category,note,date FROM transactions WHERE user=? ORDER BY date DESC,created DESC LIMIT 1000', user),
       rows(db, 'SELECT id,title,category,body,created FROM notes WHERE user=? ORDER BY created DESC LIMIT 1000', user),
@@ -24,13 +24,17 @@ export async function handleFeatures(path, method, body, db, user) {
   if (path === '/api/habits' && method === 'POST') {
     if (!titleOk(body.title) || !areas.includes(body.area)) return invalid();
     const newId = id();
-    await db.prepare('INSERT INTO habits (id,user,title,area,created) VALUES (?,?,?,?,?)').bind(newId,user,body.title.trim(),body.area,Date.now()).run();
+    await db.prepare('INSERT INTO habits (id,user,title,area,created,color) VALUES (?,?,?,?,?,?)').bind(newId,user,body.title.trim(),body.area,Date.now(),['blue','violet','green','amber','rose'].includes(body.color)?body.color:'blue').run();
     return reply(201,{id:newId});
   }
   const habitEdit = /^\/api\/habits\/([a-f0-9]{32})$/.exec(path);
   if (habitEdit && method === 'PATCH') {
+    if (typeof body.archived === 'boolean' && Object.keys(body).length === 1) {
+      const result = await db.prepare('UPDATE habits SET archived=? WHERE id=? AND user=?').bind(Number(body.archived),habitEdit[1],user).run();
+      return result.meta.changes ? reply(200,{}) : reply(404,{error:'Привычка не найдена'});
+    }
     if (!titleOk(body.title) || !areas.includes(body.area)) return invalid();
-    const result = await db.prepare('UPDATE habits SET title=?,area=? WHERE id=? AND user=?').bind(body.title.trim(),body.area,habitEdit[1],user).run();
+    const result = await db.prepare('UPDATE habits SET title=?,area=?,color=? WHERE id=? AND user=?').bind(body.title.trim(),body.area,['blue','violet','green','amber','rose'].includes(body.color)?body.color:'blue',habitEdit[1],user).run();
     return result.meta.changes ? reply(200,{}) : reply(404,{error:'Привычка не найдена'});
   }
   const habitCheck = /^\/api\/habits\/([a-f0-9]{32})\/check$/.exec(path);

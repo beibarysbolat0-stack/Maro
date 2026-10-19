@@ -18,7 +18,11 @@ function sameHash(a, b) {
   return result === 0;
 }
 const cookie = (token, maxAge) => `maro=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${maxAge}`;
-const validItem = body => typeof body.title === 'string' && !!body.title.trim() && body.title.trim().length <= 500 && allowedAreas.includes(body.area) && allowedHorizons.includes(body.horizon) && validDate(body.date);
+const validTime = value => value === undefined || value === '' || (typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value));
+const validDuration = value => value === undefined || (Number.isInteger(value) && value >= 15 && value <= 720);
+const validColor = value => value === undefined || ['blue','violet','green','amber','rose'].includes(value);
+const validStatus = value => value === undefined || ['plan','progress','done'].includes(value);
+const validItem = body => typeof body.title === 'string' && !!body.title.trim() && body.title.trim().length <= 500 && allowedAreas.includes(body.area) && allowedHorizons.includes(body.horizon) && validDate(body.date) && validTime(body.time) && validDuration(body.duration) && validColor(body.color) && validStatus(body.status);
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -62,21 +66,23 @@ export default {
       return text(200, {}, { 'set-cookie': cookie('', 0) });
     }
     if (url.pathname === '/api/items' && request.method === 'GET') {
-      const rows = await db.prepare('SELECT id,title,area,horizon,date,done FROM items WHERE user=? ORDER BY created DESC').bind(session.user).all();
+      const rows = await db.prepare('SELECT id,title,area,horizon,date,done,time,duration,status,color,archived FROM items WHERE user=? ORDER BY created DESC').bind(session.user).all();
       return text(200, rows.results);
     }
     if (url.pathname === '/api/items' && request.method === 'POST') {
       if (!validItem(body)) return text(400, { error: 'Проверьте название, сферу, срок и дату' });
       const id = random(16);
-      await db.prepare('INSERT INTO items (id,user,title,area,horizon,date,done,created) VALUES (?,?,?,?,?,?,0,?)').bind(id, session.user, body.title.trim(), body.area, body.horizon, body.date, Date.now()).run();
+      await db.prepare('INSERT INTO items (id,user,title,area,horizon,date,done,created,time,duration,status,color) VALUES (?,?,?,?,?,?,?, ?,?,?,?,?)').bind(id, session.user, body.title.trim(), body.area, body.horizon, body.date, Number(body.status === 'done'), Date.now(), body.time || '', body.duration || 60, body.status || 'plan', body.color || 'blue').run();
       return text(201, { id });
     }
     const match = /^\/api\/items\/([a-f0-9]{32})$/.exec(url.pathname);
     if (match && ['PATCH', 'DELETE'].includes(request.method)) {
       let result;
       if (request.method === 'DELETE') result = await db.prepare('DELETE FROM items WHERE id=? AND user=?').bind(match[1], session.user).run();
-      else if (typeof body.done === 'boolean' && Object.keys(body).length === 1) result = await db.prepare('UPDATE items SET done=? WHERE id=? AND user=?').bind(Number(body.done), match[1], session.user).run();
-      else if (validItem(body)) result = await db.prepare('UPDATE items SET title=?,area=?,horizon=?,date=? WHERE id=? AND user=?').bind(body.title.trim(), body.area, body.horizon, body.date, match[1], session.user).run();
+      else if (typeof body.done === 'boolean' && Object.keys(body).length === 1) result = await db.prepare('UPDATE items SET done=?,status=? WHERE id=? AND user=?').bind(Number(body.done), body.done ? 'done' : 'plan', match[1], session.user).run();
+      else if (validStatus(body.status) && typeof body.status === 'string' && Object.keys(body).length === 1) result = await db.prepare('UPDATE items SET status=?,done=? WHERE id=? AND user=?').bind(body.status, Number(body.status === 'done'), match[1], session.user).run();
+      else if (typeof body.archived === 'boolean' && Object.keys(body).length === 1) result = await db.prepare('UPDATE items SET archived=? WHERE id=? AND user=?').bind(Number(body.archived), match[1], session.user).run();
+      else if (validItem(body)) result = await db.prepare('UPDATE items SET title=?,area=?,horizon=?,date=?,time=?,duration=?,color=? WHERE id=? AND user=?').bind(body.title.trim(), body.area, body.horizon, body.date, body.time || '', body.duration || 60, body.color || 'blue', match[1], session.user).run();
       else return text(400, { error: 'Проверьте название, сферу, срок и дату' });
       return result.meta.changes ? text(200, {}) : text(404, { error: 'Задача не найдена' });
     }

@@ -32,6 +32,17 @@ test('Worker stores all personal sections, synchronizes sessions and separates a
     const inputs=[['items',{title:'A goal',area:'work',horizon:'today',date}],['habits',{title:'A habit',area:'health'}],['transactions',{kind:'expense',amount:2500,category:'Food',note:'Lunch',date}],['notes',{title:'An idea',category:'knowledge',body:'Remember this'}],['events',{title:'Meeting',date,time:'13:00'}],['sleep',{date,hours:7.5}],['focus',{title:'Deep work',minutes:25,date}]];
     const ids={};
     for(const [route,body] of inputs){const result=await call(route,'POST',body,first.cookie);assert.equal(result.status,201,route);ids[route]=result.data.id;}
+    const editTask=await call(`items/${ids.items}`,'PATCH',{title:'A timed goal',area:'work',horizon:'today',date,time:'09:30',duration:45,color:'violet'},first.cookie);
+    assert.equal(editTask.status,200);
+    assert.equal((await call(`items/${ids.items}`,'PATCH',{status:'progress'},first.cookie)).status,200);
+    const storedTask=(await call('state','GET',undefined,secondSession.cookie)).data.items[0];
+    assert.equal(storedTask.time,'09:30'); assert.equal(storedTask.duration,45); assert.equal(storedTask.status,'progress');
+    assert.equal((await call(`items/${ids.items}`,'PATCH',{archived:true},first.cookie)).status,200);
+    assert.equal((await call('state','GET',undefined,secondSession.cookie)).data.items[0].archived,1);
+    assert.equal((await call(`items/${ids.items}`,'PATCH',{archived:false},first.cookie)).status,200);
+    assert.equal((await call(`habits/${ids.habits}`,'PATCH',{archived:true},first.cookie)).status,200);
+    assert.equal((await call('state','GET',undefined,secondSession.cookie)).data.habits[0].archived,1);
+    assert.equal((await call(`habits/${ids.habits}`,'PATCH',{archived:false},first.cookie)).status,200);
     const checked=await call(`habits/${ids.habits}/check`,'POST',{date},secondSession.cookie);assert.equal(checked.data.done,true);
     const shared=await call('state','GET',undefined,secondSession.cookie);
     assert.equal(shared.status,200);

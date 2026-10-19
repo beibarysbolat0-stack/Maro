@@ -7,6 +7,7 @@ const { JSDOM } = require('jsdom');
 test('signed-in interface opens every section and safely renders personal notes', async () => {
   const html = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
   const script = fs.readFileSync(path.join(__dirname, '../public/app.js'), 'utf8');
+  const workspaceScript = fs.readFileSync(path.join(__dirname, '../public/workspace.js'), 'utf8');
   const assistantScript = fs.readFileSync(path.join(__dirname, '../public/assistant.js'), 'utf8');
   const dom = new JSDOM(html, { url: 'https://maro.example/', runScripts: 'outside-only' });
   const { window } = dom;
@@ -20,6 +21,8 @@ test('signed-in interface opens every section and safely renders personal notes'
     const route = String(input).split('/api/')[1];
     if (route === 'assistant/plan') return new Response(JSON.stringify({reply:'Добавляю прогулку.',mode:'basic',actions:[{type:'task',title:'Прогулка',area:'health',date:'2026-10-14'}]}), {status:200});
     if (route === 'assistant/apply') { writes.push({assistant:JSON.parse(options.body)}); return new Response(JSON.stringify({saved:1}), {status:200}); }
+    if (options.method === 'PATCH' && route?.startsWith('items/')) { writes.push({route,body:JSON.parse(options.body)}); return new Response('{}', {status:200}); }
+    if (options.method === 'POST' && route?.endsWith('/check')) { writes.push({route,body:JSON.parse(options.body)}); return new Response('{}', {status:200}); }
     if (options.method === 'POST' && route === 'habits') { writes.push(JSON.parse(options.body)); return new Response(JSON.stringify({id:'e'.repeat(32)}), {status:201}); }
     if (route === 'me') return new Response(JSON.stringify({ email: 'test@example.com' }), { status: 200 });
     if (route === 'state') return new Response(JSON.stringify({
@@ -32,7 +35,7 @@ test('signed-in interface opens every section and safely renders personal notes'
     return new Response('{}', { status: 200 });
   };
   try {
-    window.eval(assistantScript+'\n'+script);
+    window.eval(workspaceScript+'\n'+assistantScript+'\n'+script);
     await new Promise(resolve => setTimeout(resolve, 60));
     assert.equal(window.document.querySelector('#app').hidden, false);
     const habitButton = [...window.document.querySelectorAll('#view button')].find(x => x.textContent.includes('+ Привычка'));
@@ -49,12 +52,22 @@ test('signed-in interface opens every section and safely renders personal notes'
     await new Promise(resolve => setTimeout(resolve, 30));
     assert.equal(writes[1].assistant.actions[0].title,'Прогулка');
     assert.match(window.document.querySelector('#assistant-status').textContent,/Сохранено изменений: 1/);
-    for (const title of ['Помощник','Мой путь','Итоги','Жизнь','Финансы','База знаний','Оформление']) {
+    for (const title of ['Календарь','Доска','Привычки','Архив','Помощник','Мой путь','Итоги','Жизнь','Финансы','База знаний','Оформление']) {
       const target = [...window.document.querySelectorAll('#main-nav button')].find(x => x.textContent.includes(title));
       assert.ok(target, title);
       target.click();
       assert.match(window.document.querySelector('#view h1').textContent, new RegExp(title));
     }
+    [...window.document.querySelectorAll('#main-nav button')].find(x => x.textContent.includes('Доска')).click();
+    assert.match(window.document.querySelector('.work-board-card').textContent,/Большая цель/);
+    window.document.querySelector('.work-board-card .work-card-actions button:nth-child(2)').click();
+    await new Promise(resolve => setTimeout(resolve, 25));
+    assert.deepEqual(writes.at(-1).body,{status:'progress'});
+    [...window.document.querySelectorAll('#main-nav button')].find(x => x.textContent.includes('Привычки')).click();
+    assert.equal(window.document.querySelectorAll('.work-habit-check').length,7);
+    [...window.document.querySelectorAll('.work-habit-check')].find(x=>!x.disabled).click();
+    await new Promise(resolve => setTimeout(resolve, 25));
+    assert.match(writes.at(-1).route,/habits\/b{32}\/check/);
     const knowledge = [...window.document.querySelectorAll('#main-nav button')].find(x => x.textContent.includes('База знаний'));
     knowledge.click();
     assert.equal(window.document.querySelector('.knowledge-card img'), null);
