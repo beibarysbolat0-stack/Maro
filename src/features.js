@@ -9,17 +9,18 @@ const invalid = () => reply(400, { error: 'Проверьте данные фо�
 
 export async function handleFeatures(path, method, body, db, user) {
   if (path === '/api/state' && method === 'GET') {
-    const [items, habits, habitLogs, transactions, notes, events, sleep, focus] = await Promise.all([
-      rows(db, 'SELECT id,title,area,horizon,date,done,time,duration,status,color,archived FROM items WHERE user=? ORDER BY created DESC', user),
+    const [items, habits, habitLogs, transactions, notes, events, sleep, focus, subtasks] = await Promise.all([
+      rows(db, 'SELECT id,title,area,horizon,date,done,time,duration,status,color,archived,project,priority,tags,repeat,recurrence_source,reminder_minutes FROM items WHERE user=? ORDER BY created DESC', user),
       rows(db, 'SELECT id,title,area,created,color,archived FROM habits WHERE user=? ORDER BY created DESC', user),
       rows(db, 'SELECT habit,date FROM habit_logs WHERE user=? ORDER BY date DESC LIMIT 5000', user),
       rows(db, 'SELECT id,kind,amount,category,note,date FROM transactions WHERE user=? ORDER BY date DESC,created DESC LIMIT 1000', user),
       rows(db, 'SELECT id,title,category,body,created FROM notes WHERE user=? ORDER BY created DESC LIMIT 1000', user),
       rows(db, 'SELECT id,title,date,time FROM events WHERE user=? ORDER BY date,time LIMIT 1000', user),
       rows(db, 'SELECT id,date,hours FROM sleep_logs WHERE user=? ORDER BY date DESC LIMIT 180', user),
-      rows(db, 'SELECT id,title,minutes,date FROM focus_sessions WHERE user=? ORDER BY date DESC,created DESC LIMIT 1000', user)
+      rows(db, 'SELECT id,title,minutes,date FROM focus_sessions WHERE user=? ORDER BY date DESC,created DESC LIMIT 1000', user),
+      rows(db, 'SELECT id,item,title,done FROM subtasks WHERE user=? ORDER BY created ASC LIMIT 3000', user)
     ]);
-    return reply(200, { items, habits, habitLogs, transactions, notes, events, sleep, focus });
+    return reply(200, { items, habits, habitLogs, transactions, notes, events, sleep, focus, subtasks });
   }
   if (path === '/api/habits' && method === 'POST') {
     if (!titleOk(body.title) || !areas.includes(body.area)) return invalid();

@@ -49,6 +49,18 @@ test('Worker stores all personal sections, synchronizes sessions and separates a
     for(const collection of ['items','habits','habitLogs','transactions','notes','events','sleep','focus'])assert.equal(shared.data[collection].length,1,collection);
     const isolated=await call('state','GET',undefined,other.cookie);
     assert.ok(Object.values(isolated.data).every(list=>list.length===0));
+    const inbox=await call('items','POST',{title:'New idea',area:'study',horizon:'inbox',date,project:'Learning',priority:'high'},first.cookie);
+    assert.equal(inbox.status,201);
+    const savedInbox=(await call('state','GET',undefined,secondSession.cookie)).data.items.find(item=>item.id===inbox.data.id);
+    assert.equal(savedInbox.project,'Learning'); assert.equal(savedInbox.priority,'high'); assert.equal(savedInbox.horizon,'inbox');
+    const subtask=await call('subtasks','POST',{item:inbox.data.id,title:'First step'},first.cookie);
+    assert.equal(subtask.status,201);
+    assert.equal((await call('subtasks','POST',{item:inbox.data.id,title:'Other person'},other.cookie)).status,404);
+    assert.equal((await call(`subtasks/${subtask.data.id}`,'PATCH',{done:true},other.cookie)).status,404);
+    assert.equal((await call(`subtasks/${subtask.data.id}`,'PATCH',{done:true},secondSession.cookie)).status,200);
+    assert.equal((await call('state','GET',undefined,first.cookie)).data.subtasks[0].done,1);
+    assert.equal((await call(`items/${inbox.data.id}`,'DELETE',{},first.cookie)).status,200);
+    assert.equal((await call('state','GET',undefined,secondSession.cookie)).data.subtasks.length,0);
     const proposal=await call('assistant/plan','POST',{message:'Сегодня я буду готовиться к экзамену, потом гулять',today:date},first.cookie);
     assert.equal(proposal.status,200);
     assert.ok(proposal.data.actions.some(action=>action.type==='task'));
@@ -72,6 +84,15 @@ test('Worker stores all personal sections, synchronizes sessions and separates a
     assert.equal((await call(`transactions/${ids.transactions}`,'DELETE',{},other.cookie)).status,404);
     assert.equal((await call(`transactions/${ids.transactions}`,'DELETE',{},first.cookie)).status,200);
     assert.equal((await call('state','GET',undefined,secondSession.cookie)).data.transactions.length,0);
+    const repeatDay=new Date().toISOString().slice(0,10);
+    const previousDay=new Date(Date.parse(repeatDay+'T12:00:00Z')-86400000).toISOString().slice(0,10);
+    const repeating=await call('items','POST',{title:'Read',area:'study',horizon:'today',date:previousDay,time:'09:00',repeat:'daily',reminder_minutes:15,tags:'study, books',project:'Learning'},first.cookie);
+    assert.equal(repeating.status,201);
+    assert.equal((await call('recurrences/sync','POST',{date:repeatDay},first.cookie)).data.created,1);
+    assert.equal((await call('recurrences/sync','POST',{date:repeatDay},secondSession.cookie)).data.created,0);
+    const occurrence=(await call('state','GET',undefined,first.cookie)).data.items.find(item=>item.recurrence_source===repeating.data.id&&item.date===repeatDay);
+    assert.equal(occurrence.title,'Read'); assert.equal(occurrence.tags,'study, books'); assert.equal(occurrence.reminder_minutes,15);
+    assert.equal((await call('state','GET',undefined,other.cookie)).data.items.length,0);
     const page=await fetch(origin+'/');assert.equal(page.status,200);assert.match(await page.text(),/VELTRIX — мой ритм/);
   } catch(error) { error.message+='\n'+output.slice(-1600); throw error; }
   finally { if(child){child.kill();await new Promise(resolve=>{if(child.exitCode!==null)resolve();else child.once('exit',resolve);});}fs.rmSync(directory,{recursive:true,force:true}); }
