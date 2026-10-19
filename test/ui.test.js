@@ -75,3 +75,46 @@ test('signed-in interface opens every section and safely renders personal notes'
     assert.deepEqual(errors, []);
   } finally { window.close(); }
 });
+
+test('daily plans roll over at midnight while old tasks stay in history', async () => {
+  const html=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8');
+  const script=fs.readFileSync(path.join(__dirname,'../public/app.js'),'utf8');
+  const workspace=fs.readFileSync(path.join(__dirname,'../public/workspace.js'),'utf8');
+  const assistant=fs.readFileSync(path.join(__dirname,'../public/assistant.js'),'utf8');
+  const dom=new JSDOM(html,{url:'https://veltrix.example/',runScripts:'outside-only'});
+  const {window}=dom;
+  let clock='2026-10-19T12:00:00';
+  const RealDate=window.Date,intervals=[];
+  window.Date=class extends RealDate {
+    constructor(...args){super(...(args.length?args:[clock]));}
+    static now(){return new RealDate(clock).getTime();}
+  };
+  window.setInterval=fn=>{intervals.push(fn);return intervals.length;};
+  window.scrollTo=()=>{};
+  window.fetch=async route=>new Response(JSON.stringify(route==='/api/me'?{email:'daily@example.com'}:route==='/api/state'?{
+    items:[
+      {id:'1'.repeat(32),title:'Позавчера',area:'work',horizon:'today',date:'2026-10-18',done:0},
+      {id:'2'.repeat(32),title:'Сегодняшнее дело',area:'study',horizon:'today',date:'2026-10-19',done:0},
+      {id:'3'.repeat(32),title:'Завтрашнее дело',area:'life',horizon:'today',date:'2026-10-20',done:0}
+    ],habits:[],habitLogs:[],transactions:[],notes:[],events:[],sleep:[],focus:[]
+  }:{}),{status:200});
+  try{
+    window.eval(workspace+'\n'+assistant+'\n'+script);
+    await new Promise(resolve=>setTimeout(resolve,30));
+    assert.deepEqual([...window.document.querySelectorAll('.task-row .row-title')].map(x=>x.textContent),['Сегодняшнее дело']);
+    const go=title=>[...window.document.querySelectorAll('#main-nav button')].find(x=>x.textContent.includes(title)).click();
+    go('Мой путь');
+    assert.deepEqual([...window.document.querySelectorAll('.goal-card h3')].map(x=>x.textContent),['Сегодняшнее дело']);
+    go('Архив');
+    assert.match(window.document.querySelector('#view').textContent,/Позавчера/);
+    clock='2026-10-20T00:01:00';
+    intervals[0]();
+    await new Promise(resolve=>setTimeout(resolve,30));
+    go('Сегодня');
+    assert.deepEqual([...window.document.querySelectorAll('.task-row .row-title')].map(x=>x.textContent),['Завтрашнее дело']);
+    go('Мой путь');
+    assert.deepEqual([...window.document.querySelectorAll('.goal-card h3')].map(x=>x.textContent),['Завтрашнее дело']);
+    go('Архив');
+    assert.match(window.document.querySelector('#view').textContent,/Сегодняшнее дело/);
+  }finally{window.close();}
+});

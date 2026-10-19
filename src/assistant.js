@@ -25,7 +25,7 @@ function normalizeActions(raw, items, habits, day){
 function basicPlan(message, day, items, habits){
   if(/^(привет|здравствуй|добрый день|как дела|спасибо)[!? .]*$/i.test(message))return {reply:'Привет! Расскажи, что планируешь сегодня, и я помогу составить план.',actions:[],mode:'basic'};
   if(/\?|^(что|как|почему|где|когда)\s/i.test(message)){
-    if(/сегодня|план|задач/i.test(message))return {reply:`На сегодня у тебя ${items.filter(x=>!x.done&&x.date<=day).length} незавершённых задач и ${habits.length} привычек. Можешь назвать новое дело — я добавлю его в план.`,actions:[],mode:'basic'};
+    if(/сегодня|план|задач/i.test(message))return {reply:`На сегодня у тебя ${items.filter(x=>!x.done&&x.horizon==='today'&&x.date===day).length} незавершённых задач и ${habits.length} привычек. Можешь назвать новое дело — я добавлю его в план.`,actions:[],mode:'basic'};
     return {reply:'Расскажи, что хочешь запланировать, и я помогу добавить это в твой день.',actions:[],mode:'basic'};
   }
   const cleaned=message.replace(/(^|[\s,.])(сегодня|планирую|я буду|мне надо|нужно|хочу|собираюсь)(?=$|[\s,.])/gi,' ');
@@ -39,7 +39,7 @@ async function aiPlan(env,message,day,items,habits,history){
   await env.DB.prepare('INSERT OR IGNORE INTO assistant_usage (day,requests) VALUES (?,0)').bind(usageDay).run();
   const quota=await env.DB.prepare('UPDATE assistant_usage SET requests=requests+1 WHERE day=? AND requests<20').bind(usageDay).run();
   if(!quota.meta.changes)return null;
-  const brief={today:day,tasks:items.filter(x=>!x.done).slice(0,35).map(x=>({id:x.id,title:x.title,date:x.date,area:x.area})),habits:habits.slice(0,30).map(x=>({title:x.title,area:x.area}))};
+  const brief={today:day,tasks:items.filter(x=>!x.done&&(x.horizon!=='today'||x.date>=day)).slice(0,35).map(x=>({id:x.id,title:x.title,date:x.date,area:x.area})),habits:habits.slice(0,30).map(x=>({title:x.title,area:x.area}))};
   const prompt=`Ты русскоязычный помощник по планированию. Помоги дружелюбно и кратко. Составь действия из сообщения пользователя. Не выдумывай факты. Существующие задачи не дублируй. Не создавай финансовые операции. Для повторяющегося занятия используй habit. Для конкретного дела используй task. Сдвиг существующей задачи — reschedule с точным id. Ответ строго JSON: {"reply":"один-два предложения","actions":[{"type":"task","title":"...","date":"YYYY-MM-DD","area":"study|work|health|money|life"},{"type":"habit","title":"...","area":"..."},{"type":"reschedule","id":"...","date":"YYYY-MM-DD"}]}. Если пользователь просто беседует, actions пустой массив. Контекст: ${JSON.stringify(brief)}. Недавний диалог: ${JSON.stringify(history)}. Сообщение: ${JSON.stringify(message)}`;
   const result=await env.AI.run('@cf/meta/llama-3.1-8b-instruct-fp8',{messages:[{role:'user',content:prompt}],max_tokens:500,temperature:0.2});
   const content=String(result?.response||'');const match=content.match(/\{[\s\S]*\}/);if(!match)return null;
@@ -50,7 +50,7 @@ export async function handleAssistant(path,method,body,env,user){
   if(path==='/api/assistant/plan' && method==='POST'){
     const message=typeof body.message==='string'?body.message.trim():'',day=body.today;
     if(!message || !dateOk(day) || String(body.message).length>1200)return respond(400,{error:'Напиши сообщение до 1200 символов'});
-    const [items,habits]=await Promise.all([(await env.DB.prepare('SELECT id,title,area,date,done FROM items WHERE user=? ORDER BY created DESC LIMIT 80').bind(user).all()).results,(await env.DB.prepare('SELECT id,title,area FROM habits WHERE user=? ORDER BY created DESC LIMIT 60').bind(user).all()).results]);
+    const [items,habits]=await Promise.all([(await env.DB.prepare('SELECT id,title,area,horizon,date,done FROM items WHERE user=? AND archived=0 ORDER BY created DESC LIMIT 80').bind(user).all()).results,(await env.DB.prepare('SELECT id,title,area FROM habits WHERE user=? AND archived=0 ORDER BY created DESC LIMIT 60').bind(user).all()).results]);
     const history=Array.isArray(body.history)?body.history.slice(-6).filter(x=>x&&['user','assistant'].includes(x.role)&&typeof x.message==='string').map(x=>({role:x.role,message:x.message.slice(0,500)})):[];
     try{const proposed=await aiPlan(env,message,day,items,habits,history);if(proposed)return respond(200,proposed);}catch(error){console.warn('Workers AI unavailable',error?.message);}
     return respond(200,basicPlan(message,day,items,habits));

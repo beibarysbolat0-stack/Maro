@@ -57,8 +57,11 @@ test('Worker stores all personal sections, synchronizes sessions and separates a
     assert.equal(habitProposal.data.actions[0].type,'habit');
     assert.equal(habitProposal.data.actions[0].title,'читать книгу');
     assert.equal((await call('assistant/apply','POST',{actions:habitProposal.data.actions,today:date},first.cookie)).data.saved,1);
+    const oldDaily=await call('items','POST',{title:'An old daily task',area:'life',horizon:'today',date:'2026-10-12'},first.cookie);
+    assert.equal(oldDaily.status,201);
     const summary=await call('assistant/plan','POST',{message:'Что у меня сегодня?',today:date},first.cookie);
     assert.equal(summary.data.actions.length,0);
+    assert.match(summary.data.reply,/На сегодня у тебя 1 незавершённых задач/);
     const applied=await call('assistant/apply','POST',{actions:proposal.data.actions,today:date},first.cookie);
     assert.equal(applied.status,200);
     assert.ok(applied.data.saved>0);
