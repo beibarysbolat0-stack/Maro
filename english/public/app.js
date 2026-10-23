@@ -2,14 +2,17 @@
   'use strict';
   const LESSONS = window.LESSONS;
   const KEY = 'lingostep-progress-v1';
+  const DAILY_SIZE = 10;
   const $ = selector => document.querySelector(selector);
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
   const dayAfter = count => { const d = new Date(); d.setDate(d.getDate() + count); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
-  const fresh = () => ({ version:1, completed:{}, cards:{}, daily:{}, points:0, streak:0, lastStudy:'', goal:10 });
+  const fresh = () => ({ version:1, completed:{}, cards:{}, daily:{}, dailyVocabulary:{}, dailyCursor:0, points:0, streak:0, lastStudy:'', goal:10 });
   function load() { try { const data = JSON.parse(localStorage.getItem(KEY)); return data && data.version === 1 ? { ...fresh(), ...data } : fresh(); } catch { return fresh(); } }
   let progress = load();
   let quiz = null;
   let reviewQueue = null;
+  let reviewQueueDay = '';
+  let renderedDay = today();
   let flipped = false;
   let practicePhrase = null;
   let recognition = null;
@@ -21,25 +24,56 @@
   function route() { return decodeURIComponent(location.hash.slice(1)) || 'home'; }
   function lessonById(id) { return LESSONS.find(lesson => lesson.id === id); }
   function wordId(lesson, index) { return `${lesson.id}:${index}`; }
+  const DAILY_ORDER = (() => {
+    const seen = new Set();
+    const byLesson = LESSONS.map(lesson => lesson.words.map((word,index) => ({id:wordId(lesson,index),lesson,word})).filter(entry => {
+      const key = entry.word[0].toLocaleLowerCase('en');
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }));
+    const order = [];
+    for (let index=0;index<Math.max(...byLesson.map(words => words.length));index++) for (const words of byLesson) if (words[index]) order.push(words[index]);
+    return order;
+  })();
+  const DAILY_BY_ID = new Map(DAILY_ORDER.map(entry => [entry.id,entry]));
+  function dailyWords() {
+    progress.dailyVocabulary ||= {};
+    const key=today();
+    if (!Array.isArray(progress.dailyVocabulary[key])) {
+      const ids=[];let cursor=Number(progress.dailyCursor)||0;
+      while (ids.length<DAILY_SIZE && cursor<DAILY_ORDER.length) {
+        const entry=DAILY_ORDER[cursor++];
+        if (!progress.cards[entry.id]) ids.push(entry.id);
+      }
+      progress.dailyCursor=cursor;
+      progress.dailyVocabulary[key]=ids;
+      save();
+    }
+    return progress.dailyVocabulary[key].map(id=>DAILY_BY_ID.get(id)).filter(Boolean);
+  }
+  function pendingIntroducedWords() {
+    dailyWords();
+    const ids=Object.values(progress.dailyVocabulary).flat();
+    return [...new Set(ids)].map(id=>DAILY_BY_ID.get(id)).filter(entry=>entry&&!progress.cards[entry.id]);
+  }
   function dailyCount() { return Number(progress.daily[today()] || 0); }
   function streakCount() { if (!progress.lastStudy) return 0; if (progress.lastStudy === today()) return progress.streak; const yesterday = dayAfter(-1); return progress.lastStudy === yesterday ? progress.streak : 0; }
   function study(amount, points) { const key = today(), previous = dayAfter(-1); if (progress.lastStudy !== key) progress.streak = progress.lastStudy === previous ? progress.streak + 1 : 1; progress.lastStudy = key; progress.daily[key] = (Number(progress.daily[key]) || 0) + amount; progress.points += points; save(); }
   function nextLesson() { return LESSONS.find(lesson => !progress.completed[lesson.id]) || LESSONS.at(-1); }
   function reviewWords() {
-    const chosen = new Set(Object.keys(progress.completed)); chosen.add(nextLesson().id);
-    const due = [], freshWords = [];
-    for (const lesson of LESSONS.filter(item => chosen.has(item.id))) lesson.words.forEach((word,index) => {
-      const id = wordId(lesson,index), card = progress.cards[id], entry = { id, lesson, word };
-      if (card && card.due <= today()) due.push(entry);
-      else if (!card) freshWords.push(entry);
+    const due=[];
+    for (const lesson of LESSONS) lesson.words.forEach((word,index) => {
+      const id=wordId(lesson,index),card=progress.cards[id];
+      if (card && card.due<=today()) due.push({id,lesson,word});
     });
-    return [...due,...freshWords].slice(0,15);
+    return [...due,...pendingIntroducedWords()];
   }
   function speak(text) { if (!('speechSynthesis' in window)) { toast('Озвучивание недоступно в этом браузере.'); return; } speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(text); utterance.lang='en-US'; utterance.rate=.85; speechSynthesis.speak(utterance); }
   function speaker(text, label='▶ Слушать') { return btn(label,'speak-btn',()=>speak(text)); }
   function header(label,title,description) { const wrap=ui('div','page-heading'); wrap.append(ui('p','eyebrow',label),ui('h1','',title),ui('p','lead',description)); return wrap; }
   function renderNav() {
-    const sections=[['home','⌂','Главная'],['lessons','▤','Уроки'],['review','◈','Повторение'],['progress','▥','Прогресс']];
+    const sections=[['home','⌂','Главная'],['daily','✦','Слова дня'],['lessons','▤','Уроки'],['review','◈','Повторение'],['progress','▥','Прогресс']];
     const current=route().split(':')[0];
     for (const selector of ['#nav','#mobile-nav']) { const nav=$(selector); nav.replaceChildren(); for (const [key,icon,label] of sections) { const item=btn('',`nav-item ${current===key?'active':''}`,()=>navigate(key)); item.append(ui('span','nav-icon',icon),ui('span','',label)); if (key==='review'&&reviewWords().length) item.append(ui('span','nav-count',String(reviewWords().length))); nav.append(item); } }
     $('#top-points').textContent=`✦ ${progress.points}`;
@@ -56,9 +90,20 @@
     const hero=ui('section','hero'); const copy=ui('div','hero-copy'); copy.append(ui('p','eyebrow','ТВОЙ АНГЛИЙСКИЙ / КАЖДЫЙ ДЕНЬ'),ui('h1','',count?'Продолжай в своём ритме.':'Говори увереннее. Шаг за шагом.'),ui('p','',count?'Ты уже начал. Следующий короткий урок ждёт тебя.':'Короткие уроки, полезные фразы и повторение слов — каждый день понемногу.'));
     copy.append(btn(count?'Продолжить урок →':'Начать учиться →','primary-btn',()=>navigate(`lesson:${current.id}`))); const ornament=ui('div','hero-ornament'); ornament.append(ui('span','ornament-big','Hello!'),ui('span','ornament-small','You can do this ✦')); hero.append(copy,ornament); view.append(hero);
     const stats=ui('div','stats'); for (const [number,label,symbol] of [[`${count}/${LESSONS.length}`,'уроков пройдено','▤'],[`${streakCount()} дн.`,'серия занятий','✦'],[`${daily}/${progress.goal}`,'действий сегодня','◈']]) { const stat=ui('div','stat'); stat.append(ui('span','stat-symbol',symbol),ui('strong','',number),ui('span','',label)); stats.append(stat); } view.append(stats);
+    const pack=dailyWords(),moreTomorrow=progress.dailyCursor<DAILY_ORDER.length,dailyFeature=ui('section','daily-feature');const dailyText=ui('div');dailyText.append(ui('p','eyebrow','НОВОЕ КАЖДЫЙ ДЕНЬ'),ui('h2','',pack.length?`${pack.length} новых слов сегодня`:'Все слова курса открыты'),ui('p','',pack.length?`Сегодня: ${pack.slice(0,3).map(entry=>entry.word[0]).join(' · ')}… ${moreTomorrow?'Завтра появится следующая десятка.':'Это последняя подборка курса.'}`:'Продолжай повторять изученные слова и проходить уроки.'));dailyFeature.append(ui('span','daily-feature-icon','✦'),dailyText,btn(pack.length?'Слова дня →':'Повторить →','dark-btn',()=>navigate(pack.length?'daily':'review')));view.append(dailyFeature);
     const row=ui('div','section-head'); row.append(ui('div','',undefined)); row.firstChild.append(ui('p','eyebrow','ПРОДОЛЖИТЬ'),ui('h2','',current.title)); row.append(btn('Все уроки →','text-btn',()=>navigate('lessons'))); view.append(row);
     const feature=ui('div',`featured ${current.accent}`); const content=ui('div'); content.append(ui('span','badge',`${current.level} · ${current.minutes} минут`),ui('h3','',current.subtitle),ui('p','',current.tip),btn('Открыть урок →','dark-btn',()=>navigate(`lesson:${current.id}`))); feature.append(ui('span','feature-icon',current.icon),content); view.append(feature);
     const pending=reviewWords().length; const review=ui('div','review-promo'); const reviewCopy=ui('div'); reviewCopy.append(ui('strong','',pending?`${pending} слов ждут повторения`:'На сегодня всё повторено'),ui('p','',pending?'Вспомни слова сейчас — так они останутся с тобой надолго.':'Возвращайся завтра за следующей порцией практики.')); review.append(ui('span','review-promo-icon','◈'),reviewCopy,btn(pending?'Повторить →':'Открыть','outline-btn',()=>navigate('review'))); view.append(review);
+  }
+  function renderDaily(view) {
+    const words=dailyWords(),reviewed=words.filter(entry=>progress.cards[entry.id]).length;
+    view.append(header('10 НОВЫХ СЛОВ / КАЖДЫЙ ДЕНЬ','Слова дня','Каждый новый день открывается следующая десятка. Если пропустишь день, слова не исчезнут: новая порция появится при следующем посещении.'));
+    if (!words.length) {const done=ui('section','empty-state');done.append(ui('span','result-icon','✦'),ui('h2','','Ты открыл все 200 слов курса!'),ui('p','','Новые слова в этом курсе закончились. Повторяй изученное и проходи темы ещё раз.'),btn('Повторить слова →','primary-btn',()=>navigate('review')));view.append(done);return;}
+    const summary=ui('section','daily-summary');summary.append(ui('span','daily-summary-icon','✦'));const copy=ui('div');copy.append(ui('strong','',`${words.length} слов на сегодня`),ui('p','',`${reviewed} из ${words.length} уже отправлено в повторение. ${progress.dailyCursor<DAILY_ORDER.length?'При следующем посещении в новый день появится новая подборка.':'Это последняя подборка курса.'}`));summary.append(copy,btn('Повторять →','outline-btn',()=>{reviewQueue=null;navigate('review');}));view.append(summary);
+    const grid=ui('div','word-grid');for(const entry of words){const [english,russian,example]=entry.word,card=ui('article','word-card daily-word');const top=ui('div','word-top');top.append(ui('span','word-topic',entry.lesson.title),speaker(english,'▶'));card.append(top,ui('h3','',english),ui('p','word-translation',russian),ui('p','word-example',example));if(progress.cards[entry.id])card.append(ui('span','studied-mark','✓ В повторении'));grid.append(card);}view.append(grid);
+    const previous=pendingIntroducedWords().filter(entry=>!words.some(word=>word.id===entry.id));
+    if(previous.length){const backlog=ui('section','backlog-note');backlog.append(ui('strong','',`Остались ${previous.length} слов из прошлых дней`),ui('p','','Они не пропали: карточки ждут тебя в повторении.'),btn('Вернуться к ним →','outline-btn',()=>{reviewQueue=null;navigate('review');}));view.append(backlog);}
+    view.append(ui('p','review-hint','Нажми «Повторять», чтобы закрепить слова. Остальные слова каждой темы доступны в разделе «Уроки».'));
   }
   function renderLessons(view) { view.append(header('КУРС / A1 → A2','Уроки','Практические темы для тех, кто уже знает простые слова и фразы. Проходи в удобном порядке.')); const grid=ui('div','lesson-grid'); LESSONS.forEach((lesson,index)=>grid.append(lessonCard(lesson,index))); view.append(grid); }
   function renderLesson(view,id) {
@@ -67,7 +112,7 @@
     const intro=ui('div',`lesson-intro ${lesson.accent}`); intro.append(ui('span','lesson-intro-icon',lesson.icon),ui('p','eyebrow',`${lesson.level} / ${lesson.minutes} МИНУТ`),ui('h1','',lesson.title),ui('p','',lesson.subtitle),btn('Проверить себя →','dark-btn',()=>startQuiz(id))); view.append(intro);
     const grammar=ui('section','content-card grammar'); grammar.append(ui('p','eyebrow','ПОЛЕЗНО ЗНАТЬ'),ui('h2','','Правило в двух словах'),ui('p','',lesson.grammar)); view.append(grammar);
     const row=ui('div','section-head'); const title=ui('div'); title.append(ui('p','eyebrow','СЛОВАРЬ'),ui('h2','',`${lesson.words.length} слов и выражений`)); row.append(title); view.append(row);
-    const words=ui('div','word-grid'); lesson.words.forEach(([english,russian,example],index)=>{ const card=ui('article','word-card'); const top=ui('div','word-top'); top.append(ui('span','word-index',String(index+1).padStart(2,'0')),speaker(english,'▶')); card.append(top,ui('h3','',english),ui('p','word-translation',russian),ui('p','word-example',example)); words.append(card); }); view.append(words);
+    const dailyIds=new Set(dailyWords().map(entry=>entry.id));const words=ui('div','word-grid'); lesson.words.forEach(([english,russian,example],index)=>{ const card=ui('article',`word-card ${dailyIds.has(wordId(lesson,index))?'today-word':''}`); const top=ui('div','word-top'); top.append(ui('span','word-index',String(index+1).padStart(2,'0')),speaker(english,'▶')); card.append(top,ui('h3','',english),ui('p','word-translation',russian),ui('p','word-example',example)); if(dailyIds.has(wordId(lesson,index)))card.append(ui('span','studied-mark','✦ Сегодня'));words.append(card); }); view.append(words);
     const conversation=ui('section','content-card dialogue'); conversation.append(ui('p','eyebrow','ЖИВОЙ РАЗГОВОР'),ui('h2','','Диалог'),ui('p','muted','Нажми ▶, чтобы услышать фразу. Попробуй повторить её вслух.'));
     for (const [speakerName,english,russian] of lesson.dialogue) { const line=ui('div','dialogue-line'); line.append(ui('span','dialogue-avatar',speakerName)); const body=ui('div'); body.append(ui('strong','',english),ui('small','',russian)); line.append(body,speaker(english,'▶')); conversation.append(line); } view.append(conversation);
     const finish=ui('section','lesson-finish'); finish.append(ui('div','',undefined)); finish.firstChild.append(ui('p','eyebrow','ТВОЙ СЛЕДУЮЩИЙ ШАГ'),ui('h2','','Попробуй сам'),ui('p','',lesson.tip)); const actions=ui('div','finish-actions'); actions.append(btn('Говорить вслух','outline-btn',()=>navigate(`practice:${id}`)),btn('Проверить себя →','primary-btn',()=>startQuiz(id))); finish.append(actions); view.append(finish);
@@ -83,9 +128,9 @@
     view.append(card);
   }
   function renderReview(view) {
-    if (!reviewQueue) reviewQueue=reviewWords();
+    if (!reviewQueue || reviewQueueDay!==today()) { reviewQueue=reviewWords();reviewQueueDay=today();flipped=false; }
     view.append(header('ПАМЯТЬ / КАРТОЧКИ','Повторение','Сначала попробуй вспомнить значение, затем переверни карточку и оцени себя.'));
-    if (!reviewQueue.length) { const empty=ui('section','empty-state'); empty.append(ui('span','result-icon','✓'),ui('h2','','Всё повторено!'),ui('p','','Новые карточки появятся после уроков или в следующий день.'),btn('Выбрать урок →','primary-btn',()=>navigate('lessons'))); view.append(empty); return; }
+    if (!reviewQueue.length) { const empty=ui('section','empty-state'); empty.append(ui('span','result-icon','✓'),ui('h2','','Всё повторено!'),ui('p','','Новая десятка слов появится при следующем посещении в новый день.'),btn('Посмотреть слова дня →','primary-btn',()=>navigate('daily'))); view.append(empty); return; }
     const entry=reviewQueue[0], count=reviewQueue.length; const top=ui('div','review-status'); top.append(ui('span','badge',`Осталось ${count}`),ui('span','',entry.lesson.title)); view.append(top);
     const card=ui('section',`flashcard ${flipped?'flipped':''}`); card.append(ui('p','eyebrow',flipped?'ПЕРЕВОД':'ВСПОМНИ ПЕРЕВОД'),ui('h1','',flipped?entry.word[1]:entry.word[0]),ui('p','',flipped?entry.word[2]:'Что значит это слово или выражение?'));
     const actions=ui('div','flash-actions'); actions.append(speaker(entry.word[0],'▶ Произношение')); if (!flipped) actions.append(btn('Показать перевод','primary-btn',()=>{flipped=true;render();})); card.append(actions); view.append(card);
@@ -115,7 +160,7 @@
   function importProgress(file) { if (!file || file.size>1024*1024) return toast('Выбери файл прогресса размером до 1 МБ.'); file.text().then(text=>{ try { const data=JSON.parse(text); if(data.version!==1||typeof data.completed!=='object'||typeof data.cards!=='object'||!Number.isFinite(data.points)) throw Error('bad file'); if(!confirm('Заменить текущий прогресс данными из файла?'))return; progress={...fresh(),...data};save();reviewQueue=null;navigate('progress');toast('Прогресс загружен.'); } catch { toast('Это не файл прогресса LingoStep.'); } }); }
   function renderProgress(view) {
     view.append(header('ТВОЙ ПУТЬ / РЕЗУЛЬТАТ','Прогресс','Твои маленькие занятия складываются в большой результат.'));
-    const complete=Object.keys(progress.completed).length, learned=Object.values(progress.cards).filter(card=>card.correct>0).length, total=LESSONS.reduce((count,lesson)=>count+lesson.words.length,0);
+    const complete=Object.keys(progress.completed).length, learned=DAILY_ORDER.filter(entry=>progress.cards[entry.id]?.correct>0).length, total=DAILY_ORDER.length;
     const stats=ui('div','stats'); for(const [number,label,symbol] of [[complete,'уроков пройдено','▤'],[learned,'слов повторено','◈'],[`${streakCount()} дн.`,'текущая серия','✦'],[progress.points,'очков опыта','✳']]){const stat=ui('div','stat');stat.append(ui('span','stat-symbol',symbol),ui('strong','',String(number)),ui('span','',label));stats.append(stat);}view.append(stats);
     const progressCard=ui('section','content-card');progressCard.append(ui('p','eyebrow','КУРС A1 → A2'),ui('h2','',`${complete} из ${LESSONS.length} уроков`));const bar=ui('div','progress-track');bar.append(ui('span'));bar.firstChild.style.width=`${Math.round(complete/LESSONS.length*100)}%`;progressCard.append(bar,ui('p','muted',`В курсе ${total} слов и выражений. Из них ты уже повторил ${learned}.`));view.append(progressCard);
     const calendar=ui('section','content-card');calendar.append(ui('p','eyebrow','ПОСЛЕДНИЕ 14 ДНЕЙ'),ui('h2','','Твой ритм'));const days=ui('div','activity-days');for(let i=13;i>=0;i--){const key=dayAfter(-i),day=ui('div',`activity-day ${progress.daily[key]?'filled':''}`);day.title=`${key}: ${progress.daily[key]||0} действий`;day.append(ui('span','',String(Number(key.slice(-2)))),ui('small','',i===0?'сегодня':''));days.append(day);}calendar.append(days);view.append(calendar);
@@ -124,9 +169,12 @@
   }
   function render() {
     renderNav(); const view=$('#view'); view.replaceChildren(); const [name,id]=route().split(':');
-    if(name==='home')renderHome(view);else if(name==='lessons')renderLessons(view);else if(name==='lesson')renderLesson(view,id);else if(name==='quiz')renderQuiz(view,id);else if(name==='review')renderReview(view);else if(name==='practice')renderPractice(view,id);else if(name==='progress')renderProgress(view);else navigate('home');
+    if(name==='home')renderHome(view);else if(name==='daily')renderDaily(view);else if(name==='lessons')renderLessons(view);else if(name==='lesson')renderLesson(view,id);else if(name==='quiz')renderQuiz(view,id);else if(name==='review')renderReview(view);else if(name==='practice')renderPractice(view,id);else if(name==='progress')renderProgress(view);else navigate('home');
   }
   window.addEventListener('hashchange',render);
+  const refreshAfterDateChange=()=>{if(renderedDay!==today()){renderedDay=today();reviewQueue=null;render();}};
+  window.addEventListener('focus',refreshAfterDateChange);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshAfterDateChange();});
   if ('serviceWorker' in navigator && location.protocol==='https:') navigator.serviceWorker.register('/sw.js').catch(()=>{});
   render();
 })();
