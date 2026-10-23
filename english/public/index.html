@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f8f6f1">
+  <meta name="description" content="LingoStep — изучай английский каждый день: уроки, речь, упражнения и повторение слов.">
+  <title>LingoStep — английский каждый день</title>
+  <link rel="icon" href="/icon.svg">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/style.css?v=1">
+  <script src="/curriculum.js?v=1" defer></script>
+  <script src="/app.js?v=2" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="/" aria-label="LingoStep — главная"><span class="brand-mark">L<span class="brand-dot">.</span></span><span>LingoStep<small>АНГЛИЙСКИЙ КАЖДЫЙ ДЕНЬ</small></span></a>
+      <p class="side-label">ТВОЙ МАРШРУТ</p>
+      <nav id="nav" aria-label="Разделы"></nav>
+      <div class="side-note"><span class="note-star">✦</span><strong>Один шаг в день</strong><p>Учись по 10 минут — и возвращайся завтра за новым шагом.</p></div>
+    </aside>
+    <div class="main-wrap">
+      <header class="topbar"><span class="mobile-brand">LingoStep<span>.</span></span><span class="topline">Английский без спешки</span><span id="top-points" class="points">✦ 0</span></header>
+      <main id="view" tabindex="-1"></main>
+    </div>
+  </div>
+  <nav id="mobile-nav" class="mobile-nav" aria-label="Разделы"></nav>
+  <div id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
