@@ -92,3 +92,23 @@ test('lesson and microphone fallback remain usable without speech recognition',(
   assert.match(window.document.querySelector('.feedback').textContent,/Похоже, получилось/);
   assert.deepEqual(errors,[]);
 });
+test('every topic has a playable video and watched state persists',()=>{
+  const {window,errors}=setup();
+  for(const lesson of window.LESSONS){
+    const file=path.join(root,'video',`${lesson.id}.mp4`);
+    assert.ok(fs.statSync(file).size>100_000,lesson.id);
+    assert.equal(fs.readFileSync(file).subarray(4,8).toString(),'ftyp');
+    assert.ok(fs.statSync(path.join(root,'video',`${lesson.id}.jpg`)).size>5_000);
+  }
+  window.location.hash='videos';window.dispatchEvent(new window.HashChangeEvent('hashchange'));
+  assert.equal(window.document.querySelectorAll('.video-card').length,10);
+  window.document.querySelector('.video-card').click();
+  const video=window.document.querySelector('video');
+  assert.match(video.src,/\/video\/introductions\.mp4$/);
+  assert.equal(video.controls,true);
+  video.dispatchEvent(new window.Event('ended'));
+  const saved=JSON.parse(window.localStorage.getItem('lingostep-progress-v1'));
+  assert.equal(saved.watched.introductions,true);
+  assert.match(window.document.querySelector('.watched-state').textContent,/Просмотрено/);
+  assert.deepEqual(errors,[]);
+});

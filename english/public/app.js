@@ -6,7 +6,7 @@
   const $ = selector => document.querySelector(selector);
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
   const dayAfter = count => { const d = new Date(); d.setDate(d.getDate() + count); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
-  const fresh = () => ({ version:1, completed:{}, cards:{}, daily:{}, dailyVocabulary:{}, dailyCursor:0, points:0, streak:0, lastStudy:'', goal:10 });
+  const fresh = () => ({ version:1, completed:{}, watched:{}, cards:{}, daily:{}, dailyVocabulary:{}, dailyCursor:0, points:0, streak:0, lastStudy:'', goal:10 });
   function load() { try { const data = JSON.parse(localStorage.getItem(KEY)); return data && data.version === 1 ? { ...fresh(), ...data } : fresh(); } catch { return fresh(); } }
   let progress = load();
   let quiz = null;
@@ -73,8 +73,8 @@
   function speaker(text, label='▶ Слушать') { return btn(label,'speak-btn',()=>speak(text)); }
   function header(label,title,description) { const wrap=ui('div','page-heading'); wrap.append(ui('p','eyebrow',label),ui('h1','',title),ui('p','lead',description)); return wrap; }
   function renderNav() {
-    const sections=[['home','⌂','Главная'],['daily','✦','Слова дня'],['lessons','▤','Уроки'],['review','◈','Повторение'],['progress','▥','Прогресс']];
-    const current=route().split(':')[0];
+    const sections=[['home','⌂','Главная'],['daily','✦','Слова дня'],['lessons','▤','Уроки'],['videos','▶','Видео'],['review','◈','Повторение'],['progress','▥','Прогресс']];
+    const page=route().split(':')[0],current=page==='video'?'videos':['lesson','quiz','practice'].includes(page)?'lessons':page;
     for (const selector of ['#nav','#mobile-nav']) { const nav=$(selector); nav.replaceChildren(); for (const [key,icon,label] of sections) { const item=btn('',`nav-item ${current===key?'active':''}`,()=>navigate(key)); item.append(ui('span','nav-icon',icon),ui('span','',label)); if (key==='review'&&reviewWords().length) item.append(ui('span','nav-count',String(reviewWords().length))); nav.append(item); } }
     $('#top-points').textContent=`✦ ${progress.points}`;
   }
@@ -106,10 +106,32 @@
     view.append(ui('p','review-hint','Нажми «Повторять», чтобы закрепить слова. Остальные слова каждой темы доступны в разделе «Уроки».'));
   }
   function renderLessons(view) { view.append(header('КУРС / A1 → A2','Уроки','Практические темы для тех, кто уже знает простые слова и фразы. Проходи в удобном порядке.')); const grid=ui('div','lesson-grid'); LESSONS.forEach((lesson,index)=>grid.append(lessonCard(lesson,index))); view.append(grid); }
+  function videoPlayer(lesson) {
+    const section=ui('section','video-section');
+    const title=ui('div','video-title');title.append(ui('p','eyebrow','СМОТРИ · СЛУШАЙ · ПОВТОРЯЙ'),ui('h2','',`Видеоурок: ${lesson.title}`),ui('p','muted','Короткий урок с английской озвучкой, русскими субтитрами и паузой для ответа. Озвучка синтезирована.'));
+    const watched=ui('span','watched-state',progress.watched?.[lesson.id]?'✓ Просмотрено':'≈ 45 секунд');title.append(watched);section.append(title);
+    const player=ui('video','lesson-video');player.controls=true;player.playsInline=true;player.preload='metadata';player.poster=`/video/${lesson.id}.jpg`;player.src=`/video/${lesson.id}.mp4`;player.setAttribute('aria-label',`Видеоурок: ${lesson.title}`);
+    player.addEventListener('ended',()=>{progress.watched ||= {};progress.watched[lesson.id]=true;save();watched.textContent='✓ Просмотрено';toast('Видеоурок просмотрен. Теперь попробуй говорить сам.');});
+    player.addEventListener('error',()=>toast('Видео не загрузилось. Проверь соединение и попробуй ещё раз.'));
+    section.append(player);
+    const actions=ui('div','video-actions');actions.append(ui('span','', 'Скорость:'));
+    for(const [speed,label] of [[.75,'Медленно'],[1,'Обычно'],[1.25,'Быстрее']])actions.append(btn(label,`speed-btn ${speed===1?'active':''}`,event=>{player.playbackRate=speed;for(const node of actions.querySelectorAll('.speed-btn'))node.classList.remove('active');event.currentTarget?.classList.add('active');}));
+    actions.append(btn('Тренировать речь →','text-btn',()=>navigate(`practice:${lesson.id}`)));section.append(actions);return section;
+  }
+  function renderVideos(view) {
+    view.append(header('ВИДЕО / СЛУШАЙ И ГОВОРИ','Видеоуроки','Выбери тему, послушай английскую речь и повтори фразы в паузах. Каждый клип длится меньше минуты.'));
+    const grid=ui('div','video-grid');for(const lesson of LESSONS){const card=ui('button','video-card');card.type='button';card.onclick=()=>navigate(`video:${lesson.id}`);const image=ui('img');image.src=`/video/${lesson.id}.jpg`;image.alt='';image.loading='lazy';const cover=ui('div','video-cover');cover.append(image,ui('span','video-play-icon','▶'));card.append(cover,ui('span','video-card-level',`${lesson.level} · ${progress.watched?.[lesson.id]?'✓ Просмотрено':'≈ 45 секунд'}`),ui('h3','',lesson.title),ui('p','',lesson.subtitle));grid.append(card);}view.append(grid);
+  }
+  function renderVideo(view,id) {
+    const lesson=lessonById(id);if(!lesson)return navigate('videos');
+    view.append(btn('← Все видеоуроки','back-btn',()=>navigate('videos')),videoPlayer(lesson));
+    const practice=ui('section','lesson-finish');const copy=ui('div');copy.append(ui('p','eyebrow','ПОСЛЕ ПРОСМОТРА'),ui('h2','','Попробуй сказать сам'),ui('p','',lesson.tip));practice.append(copy,btn('Практика речи →','primary-btn',()=>navigate(`practice:${id}`)));view.append(practice);
+  }
   function renderLesson(view,id) {
     const lesson=lessonById(id); if (!lesson) return navigate('lessons');
     view.append(btn('← Все уроки','back-btn',()=>navigate('lessons')));
     const intro=ui('div',`lesson-intro ${lesson.accent}`); intro.append(ui('span','lesson-intro-icon',lesson.icon),ui('p','eyebrow',`${lesson.level} / ${lesson.minutes} МИНУТ`),ui('h1','',lesson.title),ui('p','',lesson.subtitle),btn('Проверить себя →','dark-btn',()=>startQuiz(id))); view.append(intro);
+    view.append(videoPlayer(lesson));
     const grammar=ui('section','content-card grammar'); grammar.append(ui('p','eyebrow','ПОЛЕЗНО ЗНАТЬ'),ui('h2','','Правило в двух словах'),ui('p','',lesson.grammar)); view.append(grammar);
     const row=ui('div','section-head'); const title=ui('div'); title.append(ui('p','eyebrow','СЛОВАРЬ'),ui('h2','',`${lesson.words.length} слов и выражений`)); row.append(title); view.append(row);
     const dailyIds=new Set(dailyWords().map(entry=>entry.id));const words=ui('div','word-grid'); lesson.words.forEach(([english,russian,example],index)=>{ const card=ui('article',`word-card ${dailyIds.has(wordId(lesson,index))?'today-word':''}`); const top=ui('div','word-top'); top.append(ui('span','word-index',String(index+1).padStart(2,'0')),speaker(english,'▶')); card.append(top,ui('h3','',english),ui('p','word-translation',russian),ui('p','word-example',example)); if(dailyIds.has(wordId(lesson,index)))card.append(ui('span','studied-mark','✦ Сегодня'));words.append(card); }); view.append(words);
@@ -169,7 +191,7 @@
   }
   function render() {
     renderNav(); const view=$('#view'); view.replaceChildren(); const [name,id]=route().split(':');
-    if(name==='home')renderHome(view);else if(name==='daily')renderDaily(view);else if(name==='lessons')renderLessons(view);else if(name==='lesson')renderLesson(view,id);else if(name==='quiz')renderQuiz(view,id);else if(name==='review')renderReview(view);else if(name==='practice')renderPractice(view,id);else if(name==='progress')renderProgress(view);else navigate('home');
+    if(name==='home')renderHome(view);else if(name==='daily')renderDaily(view);else if(name==='lessons')renderLessons(view);else if(name==='videos')renderVideos(view);else if(name==='video')renderVideo(view,id);else if(name==='lesson')renderLesson(view,id);else if(name==='quiz')renderQuiz(view,id);else if(name==='review')renderReview(view);else if(name==='practice')renderPractice(view,id);else if(name==='progress')renderProgress(view);else navigate('home');
   }
   window.addEventListener('hashchange',render);
   const refreshAfterDateChange=()=>{if(renderedDay!==today()){renderedDay=today();reviewQueue=null;render();}};
